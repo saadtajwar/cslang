@@ -4,7 +4,7 @@
 #include "common.h"
 
 typedef enum {
-    OPRETURN
+    OP_RETURN
 } OpCode;
 
 typedef struct {
