@@ -19,6 +19,7 @@ void initScanner(const char* source) {
 }
 
 Token scanToken() {
+    skipWhitespace();
     scanner.start = scanner.curr;
 
     if (isAtEnd()) return makeToken(TOKEN_EOF);
@@ -48,9 +49,67 @@ Token scanToken() {
         case '>':
             return makeToken(
                 match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+        case '"':
+            return string();
     }
     
     return errorToken("Unexpected character.");
+}
+
+// NOTE: the token created below will have the length of the string itself WITHOUT
+// the quotes - differing from b implementation
+static Token string() {
+    while (peek() != '"' && !isAtEnd()) {
+        char consumed = advance();
+        if (consumed == '\n') {
+            scanner.line++;
+        }
+    }
+
+    if (isAtEnd()) {
+        return errorToken("unterminated string");
+    }
+
+    Token strTok = makeToken(TOKEN_STRING);
+    advance();
+    return strTok;
+}
+
+static void skipWhitespace() {
+    for (;;) {
+        char c = peek();
+        switch (c) {
+            case ' ':
+            case '\r':
+            case '\t':
+                advance();
+                break;
+            case '\n':
+                scanner.line++;
+                advance();
+                break;
+            case '/':
+                if (peekNext() == '/') {
+                    while (peek() != '\n' && !isAtEnd()) {
+                        advance();
+                    }
+                } else {
+                    return;
+                }
+                break;
+            default:
+                return;
+        }
+    }
+}
+
+static char peekNext() {
+    if (isAtEnd()) return '\0';
+    return scanner.curr[1];
+}
+
+static char peek() {
+    return *scanner.curr;
 }
 
 static bool match(char expected) {
