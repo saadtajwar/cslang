@@ -28,7 +28,7 @@ typedef struct {
 #define NIL_VAL ((Value){VAL_BOOL, {.number = 0}})
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
 
-typedef double Value;
+// typedef double Value;
 
 typedef struct {
     int capacity;
@@ -36,6 +36,7 @@ typedef struct {
     Value* values;
 } ValueArray;
 
+bool valuesEqual(Value a, Value b);
 void initValueArray(ValueArray* array);
 void writeValueArray(ValueArray* array, Value value);
 void freeValueArray(ValueArray* array);
