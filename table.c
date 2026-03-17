@@ -68,5 +68,10 @@ bool tableSet(Table* table, ObjString* key, Value value) {
 }
 
 void tableAddAll(Table* from, Table* to) {
-    dostuff
+    for (int i = 0; i < from->capacity; i++) {
+        Entry* fromEntry = &from->entries[i];
+        if (fromEntry->key != NULL) {
+            tableSet(to, fromEntry->key, fromEntry->value);
+        }
+    }
 }
