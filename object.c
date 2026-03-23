@@ -86,3 +86,9 @@ void printObject(Value value) {
             break;
     }
 }
+
+ObjNative* newNative(NativeFn function) {
+    ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+    native->function = function;
+    return native;
+}
