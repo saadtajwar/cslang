@@ -56,11 +56,15 @@ struct ObjString {
 typedef struct ObjUpvalue {
     Obj obj;
     Value* location;
+    struct ObjUpvalue* next;
+    Value closed; 
 } ObjUpvalue;
 
 typedef struct {
     Obj obj;
     ObjFunction* function;
+    ObjUpvalue** upvalues;
+    int upvalueCount;
 } ObjClosure;
 
 ObjUpvalue* newUpvalue(Value* slot);

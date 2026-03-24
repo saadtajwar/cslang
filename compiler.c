@@ -45,6 +45,7 @@ typedef struct {
 typedef struct {
     Token name;
     int depth;
+    bool isCaptured;
 } Local;
 
 typedef struct {
@@ -176,7 +177,11 @@ static void endScope() {
     current->scoreDepth--;
 
     while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scoreDepth) {
-        emitByte(OP_POP);
+        if (current->locals[current->localCount - 1].isCaptured) {
+            emitByte(OP_CLOSE_UPVALUE);
+        } else {
+            emitByte(OP_POP);
+        }
         current->localCount--;
     }
 }
@@ -212,6 +217,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     local->depth = 0;
     local->name.start = "";
     local->name.length = 0;
+    local->isCaptured = false;
 }
 
 static void parsePrecedence(Precedence precedence) {
@@ -283,6 +289,7 @@ static void addLocal(Token name) {
     }
 
     Local* local = &current->locals[current->localCount++];
+    local->isCaptured = false;
     local->name = name;
     local->depth = -1;
 }
@@ -649,6 +656,7 @@ static int resolveUpvalue(Compiler* compiler, Token* name) {
 
     int local = resolveLocal(compiler->enclosing, name);
     if (local != -1) {
+        compiler->enclosing->locals[local].isCaptured = true;
         return addUpValue(compiler, (uint8_t)local, true);
     }
 
