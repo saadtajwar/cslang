@@ -23,9 +23,16 @@ static Obj* allocateObject(size_t size, ObjType type) {
 ObjFunction* newFunction() {
     ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
     function->arity = 0;
+    function->upvalueCount = 0;
     function->name = NULL;
     initChunk(&function->chunk);
     return function;
+}
+
+ObjUpvalue* newUpvalue(Value* slot) {
+    ObjUpvalue* upValue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+    upValue->location = slot;
+    return upValue;
 }
 
 ObjString* copyString(const char* chars, int length) {
@@ -87,6 +94,10 @@ void printObject(Value value) {
         case OBJ_CLOSURE:
             printFunction(AS_CLOSURE(value)->function);
             break;
+        case OBJ_UPVALUE:
+            printf("upvalue");
+            break;
+
     }
 }
 
