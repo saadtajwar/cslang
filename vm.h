@@ -26,6 +26,10 @@ typedef struct {
     Obj* objects;
 
     ObjUpvalue* openUpvalues;
+
+    int grayCapacity;
+    int grayCount;
+    Obj** grayStack;
 } VM;
 
 typedef enum {
