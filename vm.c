@@ -322,6 +322,7 @@ static InterpretResult run() {
             case OP_SET_LOCAL:
                 uint8_t slot = READ_BYTE();
                 frame->slots[slot] = peek(0);
+                break;
             case OP_JUMP_IF_FALSE:
                 uint16_t offset = READ_SHORT();
                 if (isFalsey(peek(0))) frame->ip += offset;
