@@ -57,7 +57,8 @@ typedef struct {
 
 typedef enum {
     TYPE_FUNCTION,
-    TYPE_SCRIPT
+    TYPE_SCRIPT,
+    TYPE_METHOD,
 } FunctionType;
 
 typedef struct Compiler {
@@ -70,10 +71,15 @@ typedef struct Compiler {
 
     Upvalue upvalues[UINT8_COUNT];
     int scopeDepth;
-};
+} Compiler;
+
+typedef struct ClassCompiler {
+    struct ClassCompiler* enclosing;
+} ClassCompiler;
 
 Parser parser;
 Compiler* current = NULL;
+ClassCompiler* currentClass = NULL;
 Chunk* compilingChunk;
 
 static void expression();
@@ -172,13 +178,13 @@ static ObjFunction* endCompiler() {
 }
 
 static void beginScope() {
-    current->scoreDepth++;
+    current->scopeDepth++;
 }
 
 static void endScope() {
-    current->scoreDepth--;
+    current->scopeDepth--;
 
-    while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scoreDepth) {
+    while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scopeDepth) {
         if (current->locals[current->localCount - 1].isCaptured) {
             emitByte(OP_CLOSE_UPVALUE);
         } else {
@@ -208,7 +214,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     compiler->function = NULL;
     compiler->type = type;
     compiler->localCount = 0;
-    compiler->scoreDepth = 0;
+    compiler->scopeDepth = 0;
     compiler->function = newFunction();
     current = compiler;
     if (type != TYPE_SCRIPT) {
@@ -217,9 +223,15 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
     Local* local = &current->locals[current->localCount++];
     local->depth = 0;
-    local->name.start = "";
-    local->name.length = 0;
     local->isCaptured = false;
+
+    if (type != TYPE_FUNCTION) {
+        local->name.start = "this";
+        local->name.length = 4;
+    } else {
+        local->name.start = "";
+        local->name.length = 0;
+    }
 }
 
 static void parsePrecedence(Precedence precedence) {
@@ -302,12 +314,12 @@ static bool identifiersEqual(Token* a, Token* b) {
 }
 
 static void declareVariable() {
-    if (current->scoreDepth == 0) return;
+    if (current->scopeDepth == 0) return;
 
     Token* name = &parser.prev;
     for (int i = current->localCount - 1; i >= 0; i--) {
         Local* local = &current->locals[i];
-        if (local->depth != -1 && local->depth < current->scoreDepth) {
+        if (local->depth != -1 && local->depth < current->scopeDepth) {
             break;
         }
 
@@ -323,18 +335,18 @@ static uint8_t parseVariable(const char* errorMessage) {
     consume(TOKEN_IDENTIFIER, errorMessage);
 
     declareVariable();
-    if (current->scoreDepth > 0) return 0;
+    if (current->scopeDepth > 0) return 0;
 
     return identifierConstant(&parser.prev);
 }
 
 static void markInitialized() {
-    if (current->scoreDepth == 0) return;
-    current->locals[current->localCount - 1].depth = current->scoreDepth;
+    if (current->scopeDepth == 0) return;
+    current->locals[current->localCount - 1].depth = current->scopeDepth;
 }
 
 static void defineVariable(uint8_t global) {
-    if (current->scoreDepth > 0) {
+    if (current->scopeDepth > 0) {
         markInitialized();
         return;
     }
@@ -389,7 +401,7 @@ static void method() {
     consume(TOKEN_IDENTIFIER, "Expect method name");
     uint8_t constant = identifierConstant(&parser.prev);
 
-    FunctionType type = TYPE_FUNCTION;
+    FunctionType type = TYPE_METHOD;
     function(type);
 
     emitBytes(OP_METHOD, constant);
@@ -403,6 +415,10 @@ static void classDeclaration() {
 
     emitBytes(OP_CLASS, nameConstant);
     defineVariable(nameConstant);
+
+    ClassCompiler classCompiler;
+    classCompiler.enclosing = currentClass;
+    currentClass = &classCompiler;
 
     namedVariable(className, false);
     consume(TOKEN_LEFT_BRACE, "Expect { before class body");
@@ -782,6 +798,10 @@ static void dot(bool canAssign) {
     }
 }
 
+static void this_(bool canAssign) {
+    variable(false);
+}
+
 ParseRule rules[] = {
   [TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
   [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -817,7 +837,7 @@ ParseRule rules[] = {
   [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
   [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
   [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
-  [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_THIS]          = {this_,    NULL,   PREC_NONE},
   [TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
   [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
   [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
@@ -831,7 +851,7 @@ bool compile(const char* source) {
     initScanner(source);
     Compiler compiler;
     initCompiler(&compiler, TYPE_SCRIPT);
-    compilingChunk = chunk;
+    // compilingChunk = chunk;
 
 
     parser.hadError = false;

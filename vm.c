@@ -123,7 +123,7 @@ static bool call(ObjClosure* closure, int argCount) {
     frame->closure = closure;
     frame->ip = closure->function->chunk.code;
     frame->slots = vm.stackTop - argCount - 1;
-    return true
+    return true;
 }
 
 static bool callValue(Value callee, int argCount) {
@@ -141,6 +141,10 @@ static bool callValue(Value callee, int argCount) {
                 ObjClass* klass = AS_CLASS(callee);
                 vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
                 return true;
+            case OBJ_BOUND_METHOD:
+                ObjBoundMethod* boundMethod = AS_BOUND_METHOD(callee);
+                vm.stackTop[-argCount - 1] = boundMethod->receiver;
+                return call(boundMethod->method, argCount);
             default:
                 break;
             
@@ -190,6 +194,19 @@ static void defineMethod(ObjString* methodName) {
     ObjClass* klass = AS_CLASS(peek(1));
     tableSet(&klass->methods, methodName, method);
     pop();
+}
+
+static bool bindMethod(ObjClass* klass, ObjString* name) {
+    Value method;
+    if (!tableGet(&klass->methods, name, &method)) {
+        runtimeError("Undefined property %s", name->chars);
+        return false;
+    }
+
+    ObjBoundMethod* boundMethod = newBoundMethod(peek(0), AS_CLOSURE(method));
+    pop();
+    push(OBJ_VAL(boundMethod));
+    return true;
 }
 
 static InterpretResult run() {
@@ -385,8 +402,10 @@ static InterpretResult run() {
                     break;
                 }
 
-                runtimeError("Undefined property '%s'.", name->chars);
-                return INTERPRET_RUNTIME_ERROR;
+                if (!bindMethod(&instance->klass, name)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
             case OP_SET_PROPERTY:
                 if (!IS_INSTANCE(peek(1))) {
                     runtimeError("Only instances have fields");
