@@ -429,6 +429,8 @@ static void classDeclaration() {
 
     consume(TOKEN_RIGHT_BRACE, "Expect } after class body");
     emitByte(OP_POP);
+
+    currentClass = currentClass->enclosing;
 }
 
 static void functionDeclaration() {
@@ -799,6 +801,10 @@ static void dot(bool canAssign) {
 }
 
 static void this_(bool canAssign) {
+    if (currentClass == NULL) {
+        error("Cant use this outside of a class");
+        return;
+    }
     variable(false);
 }
 

@@ -33,6 +33,8 @@ typedef struct {
     int grayCapacity;
     int grayCount;
     Obj** grayStack;
+
+    ObjString* initString;
 } VM;
 
 typedef enum {

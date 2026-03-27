@@ -121,6 +121,8 @@ static void markRoots() {
 
     markTable(&vm.globals);
     markCompilerRoots();
+    markObject((Obj*)vm.initString);
+
 
     for (int i = 0; i < vm.frameCount; i++) {
         markObject((Obj*)vm.frames[i].closure);
