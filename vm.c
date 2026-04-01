@@ -44,6 +44,7 @@ void initVM() {
     vm.grayCapacity = 0;
     vm.grayStack = NULL;
 
+    vm.initString = NULL;
     vm.initString = copyString("init", 4);
 
     defineNative("clock", clockNative);
@@ -52,6 +53,7 @@ void initVM() {
 void freeVM() {
     freeTable(&vm.strings);
     freeTable(&vm.globals);
+    vm.initString = NULL;
     freeObjects();
 }
 
@@ -216,6 +218,35 @@ static bool bindMethod(ObjClass* klass, ObjString* name) {
     pop();
     push(OBJ_VAL(boundMethod));
     return true;
+}
+
+static bool invokeFromClass(ObjClass* klass, ObjString* methodName, int argCount) {
+    Value method;
+    if (!tableGet(&klass->methods, methodName, &method)) {
+        runtimeError("Undefined property %s", methodName->chars);
+        return false;
+    }
+
+    return call(AS_CLOSURE(method), argCount);
+}
+
+static bool invoke(ObjString* methodName, int argCount) {
+    Value receiver = peek(argCount);
+
+    if (!IS_INSTANCE(receiver)) {
+        runtimeError("Only instances have methods");
+        return false;
+    }
+
+    ObjInstance* instance = AS_INSTANCE(receiver);
+
+    Value value;
+    if (tableGet(&instance->fields, methodName, &value)) {
+        vm.stackTop[-argCount - 1] = value;
+        return callValue(value, argCount);
+    }
+
+    return invokeFromClass(instance->klass, methodName, argCount);
 }
 
 static InterpretResult run() {
@@ -426,9 +457,18 @@ static InterpretResult run() {
                 Value value = pop();
                 pop();
                 push(value);
-                break;
+                break;                
             case OP_METHOD:
                 defineMethod(READ_STRING());
+                break;
+            case OP_INVOKE:                
+                ObjString* method = READ_STRING();
+                int argCount = READ_BYTE();
+                if (!invoke(method, argCount)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+
+                frame = &vm.frames[vm.frameCount - 1];
                 break;
         }
     }

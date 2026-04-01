@@ -59,6 +59,7 @@ typedef enum {
     TYPE_FUNCTION,
     TYPE_SCRIPT,
     TYPE_METHOD,
+    TYPE_INITIALIZER
 } FunctionType;
 
 typedef struct Compiler {
@@ -158,7 +159,11 @@ static void emitBytes(uint8_t byte1, uint8_t byte2) {
 }
 
 static void emitReturn() {
-    emitByte(OP_NIL);
+    if (current->type == TYPE_INITIALIZER) {
+        emitBytes(OP_GET_LOCAL, 0);
+    } else {
+        emitByte(OP_NIL);
+    }
     emitByte(OP_RETURN);
 }
 
@@ -402,6 +407,9 @@ static void method() {
     uint8_t constant = identifierConstant(&parser.prev);
 
     FunctionType type = TYPE_METHOD;
+    if (parser.prev.length == 4 && memcmp(parser.prev.start, "init", 4) == 0) {
+        type = TYPE_INITIALIZER;
+    }
     function(type);
 
     emitBytes(OP_METHOD, constant);
@@ -580,6 +588,8 @@ static void forStatement() {
 static void returnStatement() {
     if (current->type == TYPE_SCRIPT) {
         error("Cant return from top-level code");
+    } else if (current->type == TYPE_INITIALIZER) {
+        error("Cant return a value from initializer");
     }
 
     if (match(TOKEN_SEMICOLON)) {
@@ -795,6 +805,10 @@ static void dot(bool canAssign) {
     if (canAssign && match(TOKEN_EQUAL)) {
         expression();
         emitBytes(OP_SET_PROPERTY, name);
+    } else if (match(TOKEN_LEFT_PAREN)) {
+        uint8_t argCount = argumentList();
+        emitBytes(OP_INVOKE, name);
+        emitByte(argCount);
     } else {
         emitBytes(OP_GET_PROPERTY, name);
     }
