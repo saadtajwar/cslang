@@ -76,6 +76,7 @@ typedef struct Compiler {
 
 typedef struct ClassCompiler {
     struct ClassCompiler* enclosing;
+    bool hasSuperClass;
 } ClassCompiler;
 
 Parser parser;
@@ -415,6 +416,13 @@ static void method() {
     emitBytes(OP_METHOD, constant);
 }
 
+static Token syntheticToken(const char* tokenName) {
+    Token token;
+    token.start = tokenName;
+    token.length = (int)strlen(tokenName);
+    return token;
+}
+
 static void classDeclaration() {
     consume(TOKEN_IDENTIFIER, "Expect class name");
     Token className = parser.prev;
@@ -426,7 +434,25 @@ static void classDeclaration() {
 
     ClassCompiler classCompiler;
     classCompiler.enclosing = currentClass;
+    classCompiler.hasSuperClass = false;
     currentClass = &classCompiler;
+
+    if (match(TOKEN_LESS)) {
+        consume(TOKEN_IDENTIFIER, "Expected parent class name");
+        variable(false);
+
+        if (identifiersEqual(&className, &parser.prev)) {
+            error("Class can't inherit from itself");
+        }
+
+        beginScope();
+        addLocal(syntheticToken("super"));
+        defineVariable(0);
+
+        namedVariable(className, false);
+        emitByte(OP_INHERIT);
+        classCompiler.hasSuperClass = true;
+    }
 
     namedVariable(className, false);
     consume(TOKEN_LEFT_BRACE, "Expect { before class body");
@@ -437,6 +463,10 @@ static void classDeclaration() {
 
     consume(TOKEN_RIGHT_BRACE, "Expect } after class body");
     emitByte(OP_POP);
+
+    if (classCompiler.hasSuperClass) {
+        endScope();
+    }
 
     currentClass = currentClass->enclosing;
 }
@@ -740,7 +770,8 @@ static void namedVariable(Token name, bool canAssign) {
     } else if ((arg = resolveUpvalue(current, &name)) != -1) {
         getOp = OP_GET_UPVALUE;
         setOp = OP_SET_UPVALUE;
-    } else { arg = identifierConstant(&name);
+    } else { 
+        arg = identifierConstant(&name);
         getOp = OP_GET_GLOBAL;
         setOp = OP_SET_GLOBAL;
     }
@@ -822,6 +853,22 @@ static void this_(bool canAssign) {
     variable(false);
 }
 
+static void super_(bool canAssign) {
+    if (currentClass == NULL) {
+        error("Cant use super outside of a class");
+    } else if (!currentClass->hasSuperClass) {
+        error("Current class has no parent class");
+    }
+
+    consume(TOKEN_DOT, "Expect . after super");
+    consume(TOKEN_IDENTIFIER, "Expect super method name");
+    uint8_t name = identifierConstant(&parser.prev);
+
+    namedVariable(syntheticToken("this"), false);
+    namedVariable(syntheticToken("super"), false);
+    emitBytes(OP_GET_SUPER, name);
+}
+
 ParseRule rules[] = {
   [TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
   [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
@@ -856,7 +903,7 @@ ParseRule rules[] = {
   [TOKEN_OR]            = {NULL,     or_,    PREC_OR},
   [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
   [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
-  [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
   [TOKEN_THIS]          = {this_,    NULL,   PREC_NONE},
   [TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
   [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
