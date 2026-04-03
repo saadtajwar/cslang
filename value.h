@@ -6,7 +6,7 @@
 #include "common.h"
 
 typedef struct Obj Obj;
-typedef ObjString ObjString;
+typedef struct ObjString ObjString;
 
 #ifdef NAN_BOXING
 
@@ -23,7 +23,7 @@ typedef uint64_t Value;
 #define IS_NUMBER(value) (((value) & QNAN) != QNAN)
 #define IS_NIL(value) ((value) == NIL_VAL)
 #define IS_OBJ(value) \
-    (((value) & (QNAN | SIGN_BIT) == (QNAN | SIGN_BIT))
+    (((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
 
 #define BOOL_VAL(b) ((b) ? TRUE_VAL : FALSE_VAL)
 #define FALSE_VAL ((Value)(uint64_t)(QNAN | TAG_FALSE))
@@ -44,7 +44,7 @@ static inline Value numToValue(double num) {
     return value;
 }
 
-static inline double numToValue(Value value) {
+static inline double valueToNum(Value value) {
     double num;
     memcpy(&num, &value, sizeof(Value));
     return num;

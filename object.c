@@ -41,16 +41,13 @@ ObjUpvalue* newUpvalue(Value* slot) {
     upValue->closed = NIL_VAL;
     return upValue;
 }
-
-ObjString* copyString(const char* chars, int length) {
-    uint32_t hash = hashString(chars, length);
-    ObjString* interned = tableFindString(&vm.strings, chars, length, hash);
-    if (interned != NULL) return interned;
-
-    char* heapChars = ALLOCATE(char, length + 1);
-    memcpy(heapChars, chars, length);
-    heapChars[length] = '\0';
-    return allocateString(heapChars, length, hash);
+static uint32_t hashString(const char* key, int length) {
+  uint32_t hash = 2166136261u;
+  for (int i = 0; i < length; i++) {
+    hash ^= (uint8_t)key[i];
+    hash *= 16777619;
+  }
+  return hash;
 }
 
 static ObjString* allocateString(char* chars, int length, uint32_t hash) {
@@ -65,13 +62,15 @@ static ObjString* allocateString(char* chars, int length, uint32_t hash) {
     return string;
 }
 
-static uint32_t hashString(const char* key, int length) {
-  uint32_t hash = 2166136261u;
-  for (int i = 0; i < length; i++) {
-    hash ^= (uint8_t)key[i];
-    hash *= 16777619;
-  }
-  return hash;
+ObjString* copyString(const char* chars, int length) {
+    uint32_t hash = hashString(chars, length);
+    ObjString* interned = tableFindString(&vm.strings, chars, length, hash);
+    if (interned != NULL) return interned;
+
+    char* heapChars = ALLOCATE(char, length + 1);
+    memcpy(heapChars, chars, length);
+    heapChars[length] = '\0';
+    return allocateString(heapChars, length, hash);
 }
 
 ObjString* takeString(char* chars, int length) {
@@ -94,30 +93,33 @@ static void printFunction(ObjFunction* function) {
 }
 
 void printObject(Value value) {
-    switch (OBJ_TYPE(value)) {
-        case OBJ_STRING:
-            printf("%s", AS_CSTRING(value));
-            break;
-        case OBJ_FUNCTION:
-            printFunction(AS_FUNCTION(value));
-            break;
-        case OBJ_CLOSURE:
-            printFunction(AS_CLOSURE(value)->function);
-            break;
-        case OBJ_UPVALUE:
-            printf("upvalue");
-            break;
-        case OBJ_CLASS:
-            printf("%s", AS_CLASS(value)->name->chars);
-            break;
-        case OBJ_INSTANCE:
-            printf("%s instance",
-            AS_INSTANCE(value)->klass->name->chars);
-            break;
-        case OBJ_BOUND_METHOD:
-            printFunction(AS_BOUND_METHOD(value)->method->function);
-            break;
-    }
+  switch (OBJ_TYPE(value)) {
+    case OBJ_BOUND_METHOD:
+      printFunction(AS_BOUND_METHOD(value)->method->function);
+      break;
+    case OBJ_CLASS:
+      printf("%s", AS_CLASS(value)->name->chars);
+      break;
+    case OBJ_CLOSURE:
+      printFunction(AS_CLOSURE(value)->function);
+      break;
+    case OBJ_FUNCTION:
+      printFunction(AS_FUNCTION(value));
+      break;
+    case OBJ_INSTANCE:
+      printf("%s instance",
+      AS_INSTANCE(value)->klass->name->chars);
+      break;
+    case OBJ_NATIVE:
+      printf("<native fn>");
+      break;
+    case OBJ_STRING:
+      printf("%s", AS_CSTRING(value));
+      break;
+    case OBJ_UPVALUE:
+      printf("upvalue");
+      break;
+  }
 }
 
 ObjNative* newNative(NativeFn function) {
@@ -140,7 +142,7 @@ ObjClosure* newClosure(ObjFunction* function) {
 }
 
 ObjClass* newClass(ObjString* name) {
-    ObjClass* klass = ALLOCATE_OBJ(ObjClass*, OBJ_CLASS);
+    ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
     klass->name = name;
     initTable(&klass->methods);
     return klass;

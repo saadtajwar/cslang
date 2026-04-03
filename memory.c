@@ -150,26 +150,31 @@ static void blackenObject(Obj* markedObject) {
         case OBJ_UPVALUE:
             markValue(((ObjUpvalue*)markedObject)->closed);
             break;
-        case OBJ_FUNCTION:
-            markObject(((ObjFunction*)markedObject)->name);
-            markArray(&((ObjFunction*)markedObject)->chunk.constants);
+        case OBJ_FUNCTION: {
+            ObjFunction* function = (ObjFunction*)markedObject;
+            markObject((Obj*)function->name);
+            markArray(&function->chunk.constants);
             break;
+        }
         case OBJ_CLOSURE:
-            markObject(((ObjClosure*)markedObject)->function);
-            for (int i = 0; i < ((ObjClosure*)markedObject)->upvalueCount; i++) {
-                markObject(((ObjClosure*)markedObject)->upvalues[i]);
+            ObjClosure* closure = (ObjClosure*)markedObject;
+            markObject((Obj*)closure->function);
+            for (int i = 0; i < closure->upvalueCount; i++) {
+                markObject((Obj*)closure->upvalues[i]);
             }
+            break;
         case OBJ_CLASS: {
             ObjClass* klass = (ObjClass*)markedObject;
             markTable(&klass->methods);
             markObject((Obj*)klass->name);
             break;
         }
-        case OBJ_INSTANCE:
+        case OBJ_INSTANCE: {
             ObjInstance* instance = (ObjInstance*)markedObject;
             markObject((Obj*)instance->klass);
             markTable(&instance->fields);
             break;
+        }
         case OBJ_BOUND_METHOD: {
             ObjBoundMethod* bound = (ObjBoundMethod*)markedObject;
             markValue(bound->receiver);

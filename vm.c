@@ -31,6 +31,13 @@ Value pop() {
     return *vm.stackTop;
 }
 
+static void defineNative(const char* name, NativeFn function) {
+    push(OBJ_VAL(copyString(name, (int)strlen(name))));
+    push(OBJ_VAL(newNative(function)));
+    tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
+}
 
 void initVM() {
     resetStack();
@@ -82,14 +89,6 @@ static void runtimeError(const char* format, ...) {
 
     }
     resetStack();
-}
-
-static void defineNative(const char* name, NativeFn function) {
-    push(OBJ_VAL(copyString(name, (int)strlen(name))));
-    push(OBJ_VAL(newNative(function)));
-    tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
-    pop();
-    pop();
 }
 
 static bool isFalsey(Value value) {
@@ -281,12 +280,13 @@ static InterpretResult run() {
         #endif
         uint8_t instruction;
         switch (instruction = READ_BYTE()) {
-            case OP_CONSTANT:
+            case OP_CONSTANT: {
                 Value constant = READ_CONSTANT();
                 push(constant);
                 printValue(constant);
                 printf("\n");
                 break;
+            }
             case OP_NEGATE:
                 if (!IS_NUMBER(peek(0))) {
                     runtimeError("Operand must be a number");
@@ -333,12 +333,13 @@ static InterpretResult run() {
                 printValue(pop());
                 printf("\n");
                 break;
-            case OP_DEFINE_GLOBAL:
+            case OP_DEFINE_GLOBAL: {
                 ObjString* name = READ_STRING();
                 tableSet(&vm.globals, name, peek(0));
                 pop();
                 break;
-            case OP_GET_GLOBAL:
+            }
+            case OP_GET_GLOBAL: {
                 ObjString* name = READ_STRING();
                 Value value;
                 if (!tableGet(&vm.globals, name, &value)) {
@@ -347,7 +348,8 @@ static InterpretResult run() {
                 }
                 push(value);
                 break;
-            case OP_SET_GLOBAL:
+            }
+            case OP_SET_GLOBAL: {
                 ObjString* name = READ_STRING();
                 if (tableSet(&vm.globals, name, peek(0))) {
                     tableDelete(&vm.globals, name);
@@ -355,34 +357,41 @@ static InterpretResult run() {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
-            case OP_GET_LOCAL:
+            }
+            case OP_GET_LOCAL: {
                 uint8_t slot = READ_BYTE();
                 push(frame->slots[slot]);
                 break;
-            case OP_SET_LOCAL:
+            }
+            case OP_SET_LOCAL: {
                 uint8_t slot = READ_BYTE();
                 frame->slots[slot] = peek(0);
                 break;
-            case OP_JUMP_IF_FALSE:
+            }
+            case OP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();
                 if (isFalsey(peek(0))) frame->ip += offset;
                 break;
-            case OP_JUMP:
+            }
+            case OP_JUMP: {
                 uint16_t offset = READ_SHORT();
                 frame->ip += offset;
                 break;
-            case OP_LOOP:
+            }
+            case OP_LOOP: {
                 uint16_t offset = READ_SHORT();
                 frame->ip -= offset;
                 break;
-            case OP_CALL:
+            }
+            case OP_CALL: {
                 int argCount = READ_BYTE();
                 if (!callValue(peek(argCount), argCount)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 frame = &vm.frames[vm.frameCount - 1];
                 break;
-            case OP_RETURN:
+            }
+            case OP_RETURN: {
                 Value result = pop();
                 vm.frameCount--;
                 closeUpvalues(frame->slots);
@@ -395,7 +404,8 @@ static InterpretResult run() {
                 push(result);
                 frame = &vm.frames[vm.frameCount - 1];
                 break;
-            case OP_CLOSURE:
+            }
+            case OP_CLOSURE: {
                 ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
                 ObjClosure* closure = newClosure(function);
                 push(OBJ_VAL(closure));
@@ -411,6 +421,7 @@ static InterpretResult run() {
                 }
 
                 break;
+            }
             case OP_GET_UPVALUE: {
                 uint8_t slot = READ_BYTE();
                 push(*frame->closure->upvalues[slot]->location);
@@ -421,14 +432,16 @@ static InterpretResult run() {
                 *frame->closure->upvalues[slot]->location = peek(0);
                 break;
             }
-            case OP_CLOSE_UPVALUE:
+            case OP_CLOSE_UPVALUE: {
                 closeUpvalues(vm.stackTop - 1);
                 pop();
                 break;
-            case OP_CLASS:
+            }
+            case OP_CLASS: {
                 push(OBJ_VAL(newClass(READ_STRING())));
                 break;
-            case OP_GET_PROPERTY:
+            }
+            case OP_GET_PROPERTY: {
                 if (!IS_INSTANCE(peek(0))) {
                     runtimeError("Only instances have properties");
                     return INTERPRET_RUNTIME_ERROR;
@@ -443,11 +456,12 @@ static InterpretResult run() {
                     break;
                 }
 
-                if (!bindMethod(&instance->klass, name)) {
+                if (!bindMethod(instance->klass, name)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
-            case OP_SET_PROPERTY:
+            }
+            case OP_SET_PROPERTY: {
                 if (!IS_INSTANCE(peek(1))) {
                     runtimeError("Only instances have fields");
                     return INTERPRET_RUNTIME_ERROR;
@@ -457,11 +471,13 @@ static InterpretResult run() {
                 Value value = pop();
                 pop();
                 push(value);
-                break;                
-            case OP_METHOD:
+                break;
+            }          
+            case OP_METHOD: {
                 defineMethod(READ_STRING());
                 break;
-            case OP_INVOKE:                
+            }
+            case OP_INVOKE: {           
                 ObjString* method = READ_STRING();
                 int argCount = READ_BYTE();
                 if (!invoke(method, argCount)) {
@@ -470,6 +486,7 @@ static InterpretResult run() {
 
                 frame = &vm.frames[vm.frameCount - 1];
                 break;
+            }
             case OP_INHERIT: {
                 if (!IS_CLASS(peek(1))) {
                     runtimeError("Superclass must be a class");
