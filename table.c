@@ -119,7 +119,7 @@ ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t
             if (IS_NIL(entry->value)) return NULL;
         } else if (entry->key->length == length &&
             entry->key->hash == hash &&
-            memcpy(entry->key->chars, chars, length) == 0) {
+            memcmp(entry->key->chars, chars, length) == 0) {
                 return entry->key;
             }
         
@@ -129,7 +129,7 @@ ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t
 }
 
 void markTable(Table* table) {
-    for (int i = 0; i < table->count; i++) {
+    for (int i = 0; i < table->capacity; i++) {
         Entry* entry = &table->entries[i];
         markObject((Obj*)entry->key);
         markValue(entry->value);

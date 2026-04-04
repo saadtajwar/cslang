@@ -80,7 +80,7 @@ static void runtimeError(const char* format, ...) {
         ObjFunction* function = frame->closure->function;
         size_t instruction = frame->ip - function->chunk.code - 1;
 
-        fprintf(stderr, "Line %d in", function->chunk.lines[instruction]);
+        fprintf(stderr, "Line %d in ", function->chunk.lines[instruction]);
         if (function->name == NULL) {
             fprintf(stderr, "script\n");
         } else {
@@ -283,8 +283,6 @@ static InterpretResult run() {
             case OP_CONSTANT: {
                 Value constant = READ_CONSTANT();
                 push(constant);
-                printValue(constant);
-                printf("\n");
                 break;
             }
             case OP_NEGATE:
@@ -353,7 +351,7 @@ static InterpretResult run() {
                 ObjString* name = READ_STRING();
                 if (tableSet(&vm.globals, name, peek(0))) {
                     tableDelete(&vm.globals, name);
-                    runtimeError("Undefined var '%s'", name->chars);
+                    runtimeError("Undefined var when setting '%s'", name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -466,7 +464,7 @@ static InterpretResult run() {
                     runtimeError("Only instances have fields");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                ObjInstance* instance = AS_INSTANCE(peek(0));
+                ObjInstance* instance = AS_INSTANCE(peek(1));
                 tableSet(&instance->fields, READ_STRING(), peek(0));
                 Value value = pop();
                 pop();
@@ -493,7 +491,7 @@ static InterpretResult run() {
                     return INTERPRET_RUNTIME_ERROR;
                 }
 
-                ObjClass* superClass = AS_CLASS(peek(0));
+                ObjClass* superClass = AS_CLASS(peek(1));
                 ObjClass* subClass = AS_CLASS(peek(0));
                 tableAddAll(&superClass->methods, &subClass->methods);
                 pop();

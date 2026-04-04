@@ -518,51 +518,47 @@ static void varDeclaration() {
 }
 
 static void forStatement() {
-    beginScope();
-    consume(TOKEN_LEFT_PAREN, "Expect ( after for ");
-    if (match(TOKEN_SEMICOLON)) {
-        // no initializer
-    } else if (match(TOKEN_VAR)) {
-        varDeclaration();
-    } else {
-        expressionStatement();
-    }
+  beginScope();
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
-    consume(TOKEN_SEMICOLON, "Expect ;");
+  if (match(TOKEN_SEMICOLON)) {
+  } else if (match(TOKEN_VAR)) {
+    varDeclaration();
+  } else {
+    expressionStatement();
+  }
 
-    int loopStart = currentChunk()->count;
-    int exitJump = -1;
-    if (!match(TOKEN_SEMICOLON)) {
-        expression();
-        consume(TOKEN_SEMICOLON, "Expect ; after loop condition");
+  int loopStart = currentChunk()->count;
 
-        exitJump = emitJump(OP_JUMP_IF_FALSE);
-        emitByte(OP_POP);
-    }
-    consume(TOKEN_SEMICOLON, "Expect ;");
-    consume(TOKEN_RIGHT_PAREN, "Expect ) after for caluse");
+  int exitJump = -1;
+  if (!match(TOKEN_SEMICOLON)) {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
-    if (!match(TOKEN_RIGHT_PAREN)) {
-        int bodyJump = emitJump(OP_JUMP);
-        int incrementStart = currentChunk()->count;
-        expression();
-        emitByte(OP_POP);
-        consume(TOKEN_RIGHT_PAREN, "Expect ) after for clause");
+    exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+  }
 
-        emitLoop(loopStart);
-        loopStart = incrementStart;
-        patchJump(bodyJump);
-    }
+  if (!match(TOKEN_RIGHT_PAREN)) {
+    int bodyJump = emitJump(OP_JUMP);
+    int incrementStart = currentChunk()->count;
+    expression();
+    emitByte(OP_POP);
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
-    statement();
     emitLoop(loopStart);
+    loopStart = incrementStart;
+    patchJump(bodyJump);
+  }
 
-    if (exitJump != -1) {
-        patchJump(exitJump);
-        emitByte(OP_POP);
-    }
+  statement();
+  emitLoop(loopStart);
 
-    endScope();
+  if (exitJump != -1) {
+    patchJump(exitJump);
+    emitByte(OP_POP);
+  }
+  endScope();
 }
 
 static void returnStatement() {
@@ -582,20 +578,25 @@ static void returnStatement() {
 }
 
 static void statement() {
-    if (match(TOKEN_PRINT)) {
-        printStatement();
-    } else if (match(TOKEN_IF)) {
-        ifStatement();
-    } else if (match(TOKEN_WHILE)) {
-        whileStatement();
-    } else if (match(TOKEN_FOR)) {
-        forStatement();
-    } else if (match(TOKEN_RETURN)) {
-        returnStatement();
-    } else {
-        expressionStatement();
-    }
+  if (match(TOKEN_PRINT)) {
+    printStatement();
+  } else if (match(TOKEN_FOR)) {
+    forStatement();
+  } else if (match(TOKEN_IF)) {
+    ifStatement();
+  } else if (match(TOKEN_RETURN)) {
+    returnStatement();
+  } else if (match(TOKEN_WHILE)) {
+    whileStatement();
+  } else if (match(TOKEN_LEFT_BRACE)) {
+    beginScope();
+    block();
+    endScope();
+  } else {
+    expressionStatement();
+  }
 }
+
 static Token syntheticToken(const char* tokenName) {
     Token token;
     token.start = tokenName;
@@ -815,7 +816,7 @@ static uint8_t argumentList() {
         } while (match(TOKEN_COMMA));
     }
 
-    consume(TOKEN_LEFT_PAREN, "Expect ) after args");
+    consume(TOKEN_RIGHT_PAREN, "Expect ) after args");
     return argCount;
 }
 
